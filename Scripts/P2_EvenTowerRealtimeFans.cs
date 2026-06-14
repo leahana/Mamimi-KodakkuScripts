@@ -16,14 +16,14 @@ namespace PersonalKodakkuAssist.DancingMadUltimate
         name: "P2 遗弃末世 偶数塔扇形互喷范围",
         territorys: [1363],
         guid: "31cf341e-893d-4ce7-97ba-a834a0ac913b",
-        version: "1.4.1",
+        version: "1.4.2",
         note: "参考 Cicero 原始实现，仅显示偶数轮塔中扇形点名互相瞄准最近玩家的实时范围。",
         author: "Mamimi")]
     public class P2_EvenTower_FanTelegraph
     {
         private const string DrawPrefix = "P2_遗弃末世_偶数塔_扇形范围";
         private const string DrawRegex = "^P2_遗弃末世_偶数塔_扇形范围_.*$";
-        private const int MaximumDuration = 7_200_000;
+        private const int MaximumDuration = 60_000;
         private const int FinalCleanupDelay = 10_000;
         private const int TowerRadius = 4;
         private const int LastTowerEventCount = 16;
@@ -36,10 +36,12 @@ namespace PersonalKodakkuAssist.DancingMadUltimate
         private readonly List<int> towers = new();
         private readonly ConcurrentDictionary<ulong, int> drawingCounters = new();
         private readonly object towerCounterLock = new();
+        private readonly object cleanupLock = new();
 
         private volatile bool mechanicActive;
         private volatile int towerEventCount;
         private int pullGeneration;
+        private CancellationTokenSource? finalCleanupCancellation;
 
         private enum IconType
         {
@@ -168,7 +170,9 @@ namespace PersonalKodakkuAssist.DancingMadUltimate
 
             if (currentTowerEventCount == LastTowerEventCount)
             {
-                ScheduleFinalCleanup(pullGeneration, accessory);
+                ScheduleFinalCleanup(
+                    Volatile.Read(ref pullGeneration),
+                    accessory);
             }
         }
 
@@ -179,7 +183,7 @@ namespace PersonalKodakkuAssist.DancingMadUltimate
             userControl: false)]
         public void EndMechanic(Event @event, ScriptAccessory accessory)
         {
-            mechanicActive = false;
+            ResetMechanic(accessory, false);
         }
 
         private void RedrawAllPartyFans(ScriptAccessory accessory)
@@ -279,20 +283,82 @@ namespace PersonalKodakkuAssist.DancingMadUltimate
             int generation,
             ScriptAccessory accessory)
         {
-            System.Threading.Tasks.Task.Delay(FinalCleanupDelay).ContinueWith(_ =>
+            var cleanupCancellation = new CancellationTokenSource();
+            CancellationTokenSource? previousCancellation;
+
+            lock (cleanupLock)
             {
-                if (generation == pullGeneration)
+                previousCancellation = finalCleanupCancellation;
+                finalCleanupCancellation = cleanupCancellation;
+            }
+
+            previousCancellation?.Cancel();
+            _ = RunFinalCleanupAsync(
+                generation,
+                cleanupCancellation,
+                accessory);
+        }
+
+        private async System.Threading.Tasks.Task RunFinalCleanupAsync(
+            int generation,
+            CancellationTokenSource cleanupCancellation,
+            ScriptAccessory accessory)
+        {
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(
+                    FinalCleanupDelay,
+                    cleanupCancellation.Token);
+
+                lock (cleanupLock)
                 {
+                    if (cleanupCancellation.IsCancellationRequested
+                        || generation != Volatile.Read(ref pullGeneration)
+                        || !ReferenceEquals(
+                            finalCleanupCancellation,
+                            cleanupCancellation))
+                    {
+                        return;
+                    }
+
                     accessory.Method.RemoveDraw(DrawRegex);
+                    finalCleanupCancellation = null;
                 }
-            });
+            }
+            catch (OperationCanceledException)
+                when (cleanupCancellation.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                lock (cleanupLock)
+                {
+                    if (ReferenceEquals(
+                        finalCleanupCancellation,
+                        cleanupCancellation))
+                    {
+                        finalCleanupCancellation = null;
+                    }
+                }
+
+                cleanupCancellation.Dispose();
+            }
         }
 
         private void ResetMechanic(
             ScriptAccessory accessory,
             bool activate)
         {
-            pullGeneration++;
+            CancellationTokenSource? cleanupCancellation;
+
+            lock (cleanupLock)
+            {
+                Interlocked.Increment(ref pullGeneration);
+                cleanupCancellation = finalCleanupCancellation;
+                finalCleanupCancellation = null;
+            }
+
+            cleanupCancellation?.Cancel();
             mechanicActive = activate;
 
             lock (iconTypes)

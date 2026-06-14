@@ -14,7 +14,7 @@ https://raw.githubusercontent.com/leahana/Mamimi-KodakkuScripts/main/OnlineRepo.
 
 | 脚本 | 区域 ID | 版本 |
 | --- | ---: | ---: |
-| P2 遗弃末世 偶数塔扇形互喷范围 | 1363 | 1.4.1 |
+| P2 遗弃末世 偶数塔扇形互喷范围 | 1363 | 1.4.2 |
 
 ## 更新规则
 
