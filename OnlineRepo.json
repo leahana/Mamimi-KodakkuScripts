@@ -15,12 +15,12 @@
   {
     "Name": "[妖星乱舞绝境战]P5 全流程绘制（地火细分版）",
     "Guid": "b09b4ae6-20c7-4d33-8a18-749eae12950d",
-    "Version": "0.0.21",
+    "Version": "0.0.22",
     "Author": "Mamimi",
     "Repo": "https://github.com/leahana/Mamimi-KodakkuScripts",
     "DownloadUrl": "https://raw.githubusercontent.com/leahana/Mamimi-KodakkuScripts/main/Scripts/P5_YaoxingLuanwu.cs",
     "Note": "个人自用版，基于 Errer 原 P5 脚本。P5 全套绘制：地火步进圈 + 钢铁月环 + 地水/洪水2穿1安全点 + 核爆/神圣分散 + 三星踩塔指路 + 地火安全点引导。",
-    "UpdateInfo": "0.0.21：新增地火「只亮当前段」模式（静态全路线淡显、仅分时亮箭头指引当前段，治连线重叠）。0.0.20：地火安全引导拆分为落点圈 / 走位路线连线 / 指路位移线 / 危险圈段数 独立开关。",
+    "UpdateInfo": "0.0.22：「只亮当前段」改为直接隐藏点间连线（落点圈淡显作路点），仅分时亮箭头指引当前段，根治连线重叠。0.0.20：地火安全引导拆分为落点圈 / 走位路线连线 / 指路位移线 / 危险圈段数 独立开关。",
     "TerritoryIds": [
       1363
     ]

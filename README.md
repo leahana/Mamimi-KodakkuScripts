@@ -15,7 +15,7 @@ https://raw.githubusercontent.com/leahana/Mamimi-KodakkuScripts/main/OnlineRepo.
 | 脚本 | 区域 ID | 版本 |
 | --- | ---: | ---: |
 | P2 遗弃末世 偶数塔扇形互喷范围 | 1363 | 1.4.2 |
-| [妖星乱舞绝境战] P5 全流程绘制（地火细分版，改自 Errer） | 1363 | 0.0.21 |
+| [妖星乱舞绝境战] P5 全流程绘制（地火细分版，改自 Errer） | 1363 | 0.0.22 |
 
 ## 更新规则
 

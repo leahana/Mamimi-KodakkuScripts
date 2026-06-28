@@ -15,10 +15,10 @@ namespace ErrerScriptNamespace
         name: "[妖星乱舞绝境战]P5全流程绘制（地火细分版）",
         territorys: [1363],
         guid: "b09b4ae6-20c7-4d33-8a18-749eae12950d",
-        version: "0.0.21",
+        version: "0.0.22",
         author: "Mamimi",
         note: "个人自用版，基于 Errer 原 P5 脚本，新增地火细分开关（落点圈/路线连线/指路位移线/危险圈段数可独立控制）。\n" +
-              "新增「只亮当前段」模式：静态全路线淡显作参考，仅分时亮箭头指引当前要走的一段，避免连线重叠。\n" +
+              "新增「只亮当前段」模式：隐藏点间连线、落点圈淡显作路点，仅分时亮箭头指引当前要走的一段，根治连线重叠。\n" +
               "P5全套：地火步进圈 + 钢铁月环 + 地水/洪水2穿1安全点 + 核爆/神圣分散 + 三星踩塔指路 + 地火安全点引导。")]
     public class YW_P5FireScript
     {
@@ -60,10 +60,10 @@ namespace ErrerScriptNamespace
         [UserSetting("地火-显示指路位移线")]
         public bool EnableFireGuideLine { get; set; } = true;
 
-        [UserSetting("地火-只亮当前段（静态路线淡显，靠分时箭头指引）")]
+        [UserSetting("地火-只亮当前段（隐藏点间连线、落点圈淡显，靠分时箭头指引）")]
         public bool FireRouteDimStatic { get; set; } = false;
 
-        [UserSetting("地火-静态路线淡显透明度(0~1)")]
+        [UserSetting("地火-只亮当前段-落点圈淡显透明度(0~1)")]
         public float FireRouteDimAlpha { get; set; } = 0.25f;
 
         [UserSetting("地火-危险圈段数")]
@@ -563,8 +563,8 @@ namespace ErrerScriptNamespace
                 accessory.Method.SendChat($"/e [地火安全] {suffix} dir4={dir4} clockwise={clockwise} delay1={delay1}ms delay2={delay2}ms");
         }
 
-        // 「只亮当前段」模式：把静态参考层（落点圈/连线）按透明度淡显，
-        // 动态分时亮箭头（DrawFireGuideTo）保持原色 → 任一时刻只有当前段醒目。
+        // 「只亮当前段」模式：点间连线直接不画（见 DrawFireRouteLine），落点圈按透明度淡显作路点参考，
+        // 动态分时亮箭头（DrawFireGuideTo）保持原色 → 任一时刻只有当前段醒目，且无连线重叠。
         private Vector4 MaybeDimStatic(Vector4 color)
         {
             if (!FireRouteDimStatic)
@@ -611,7 +611,8 @@ namespace ErrerScriptNamespace
 
         private void DrawFireRouteLine(ScriptAccessory accessory, string suffix, Vector3 from, Vector3 to, int delayMs, int durationMs, Vector4 color)
         {
-            if (!EnableFireRouteLine)
+            // 「只亮当前段」模式：点间静态连线是 ②③④ 共线折返重叠的根源，直接不画，只靠分时亮箭头指引。
+            if (!EnableFireRouteLine || FireRouteDimStatic)
                 return;
             if (durationMs <= 0)
                 return;
@@ -622,7 +623,7 @@ namespace ErrerScriptNamespace
             dp.TargetPosition = to;
             dp.Scale = new Vector2(FireRouteLineWidth);
             dp.ScaleMode = ScaleMode.YByDistance;
-            dp.Color = MaybeDimStatic(color);
+            dp.Color = color;
             dp.Delay = delayMs;
             dp.DestoryAt = durationMs;
             accessory.Method.SendDraw(DMG, DrawTypeEnum.Displacement, dp);
