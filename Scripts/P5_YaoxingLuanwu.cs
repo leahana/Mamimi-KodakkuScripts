@@ -15,11 +15,13 @@ namespace ErrerScriptNamespace
         name: "[妖星乱舞绝境战]P5全流程绘制（地火细分版）",
         territorys: [1363],
         guid: "b09b4ae6-20c7-4d33-8a18-749eae12950d",
-        version: "0.0.22",
+        version: "0.0.23",
         author: "Mamimi",
         note: "个人自用版，基于 Errer 原 P5 脚本，新增地火细分开关（落点圈/路线连线/指路位移线/危险圈段数可独立控制）。\n" +
               "新增「只亮当前段」模式：隐藏点间连线、落点圈淡显作路点，仅分时亮箭头指引当前要走的一段，根治连线重叠。\n" +
-              "P5全套：地火步进圈 + 钢铁月环 + 地水/洪水2穿1安全点 + 核爆/神圣分散 + 三星踩塔指路 + 地火安全点引导。")]
+              "新增「神圣引导预警」：第一次点名时给 DPS/奶妈铺黄圈防互撞，点名后撤圈、两轮后清理兜底。\n" +
+              "设置面板按时间轴机制重排归纳（同机制开关与颜色就近）。\n" +
+              "P5全套：地水/洪水2穿1安全点 + 核爆/神圣分散(含引导预警) + 三星踩塔指路 + 钢铁月环 + 地火步进圈/安全点引导。")]
     public class YW_P5FireScript
     {
         public enum FireSafeStrategy
@@ -39,16 +41,126 @@ namespace ErrerScriptNamespace
 
         #region Settings
 
-        [UserSetting("-----地火步进圈-----")]
+        // kdy 设置面板按属性「声明顺序」渲染、不会自动重排，故此处按时间轴机制分块归纳：
+        // 每个机制把 [伤害范围开关 / 指路开关 / 该机制颜色] 相邻摆放，便于整段开关与查找。
+
+        // ───────── ① 地水 / 洪水（0:26 混沌洪水）─────────
+        [UserSetting("───── ① 地水 / 洪水（0:26）─────")]
+        public bool _____Water_Settings_____ { get; set; } = true;
+
+        [UserSetting("地水-启用矩形伤害范围")]
+        public bool EnableWater { get; set; } = true;
+
+        [UserSetting("地水-矩形颜色")]
+        public ScriptColor WaterColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 1.0f, 0.0f, 0.35f) };
+
+        [UserSetting("洪水-启用2穿1安全点指路")]
+        public bool EnableFloodSafe { get; set; } = true;
+
+        [UserSetting("洪水-安全点最大距离（米）")]
+        public float FloodMaxDist { get; set; } = 8f;
+
+        [UserSetting("洪水-启用中间节点")]
+        public bool EnableFloodMidNode { get; set; } = true;
+
+        [UserSetting("洪水-路线底色")]
+        public ScriptColor FloodRouteInactiveColor { get; set; } = new ScriptColor { V4 = new Vector4(0.35f, 0.35f, 0.35f, 0.65f) };
+
+        [UserSetting("洪水-路线起点色")]
+        public ScriptColor FloodRouteStartColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 1f, 1f) };
+
+        [UserSetting("洪水-路线中转色")]
+        public ScriptColor FloodRouteMidColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 0.4f, 1f) };
+
+        [UserSetting("洪水-路线终点色")]
+        public ScriptColor FloodRouteFinalColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 0f, 1f) };
+
+        [UserSetting("洪水-Debug 打印交点坐标")]
+        public bool FloodDebug { get; set; } = false;
+
+        // ───────── ② 核爆 / 神圣（0:39·2:11 癫狂交响曲）─────────
+        [UserSetting("───── ② 核爆 / 神圣（0:39·2:11）─────")]
+        public bool _____BusterSpread_Settings_____ { get; set; } = true;
+
+        [UserSetting("核爆神圣-启用核爆死刑圈+神圣分散圈")]
+        public bool EnableBusterSpread { get; set; } = true;
+
+        [UserSetting("核爆-死刑圈颜色(r25)")]
+        public ScriptColor BusterColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.0f, 0.0f, 0.35f) };
+
+        [UserSetting("神圣-分散圈颜色(r5)")]
+        public ScriptColor SpreadColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 1.0f, 0.0f, 0.35f) };
+
+        [UserSetting("神圣引导-启用预警黄圈(DPS/奶妈防互撞)")]
+        public bool EnableHolyGuide { get; set; } = true;
+
+        [UserSetting("神圣引导-只画自己(默认关，防互撞需看他人圈)")]
+        public bool HolyGuideSelfOnly { get; set; } = false;
+
+        [UserSetting("神圣引导-预警黄圈颜色")]
+        public ScriptColor HolyGuideColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 1.0f, 0.0f, 0.25f) };
+
+        [UserSetting("神圣引导-预警黄圈半径(米)")]
+        public float HolyGuideRadius { get; set; } = 5f;
+
+        [UserSetting("神圣引导-Debug")]
+        public bool HolyGuideDebug { get; set; } = false;
+
+        // ───────── ③ 三星踩塔指路（1:09）─────────
+        [UserSetting("───── ③ 三星踩塔（1:09）─────")]
+        public bool _____Tower_Settings_____ { get; set; } = true;
+
+        [UserSetting("踩塔-启用指路")]
+        public bool EnableTowerGuide { get; set; } = true;
+
+        [UserSetting("踩塔-只指路自己")]
+        public bool TowerGuideSelfOnly { get; set; } = true;
+
+        [UserSetting("踩塔-头部标记")]
+        public bool TowerEnableMark { get; set; } = false;
+
+        [UserSetting("踩塔-分配最大等待ms")]
+        public int TowerAssignMaxWaitMs { get; set; } = 2500;
+
+        [UserSetting("踩塔-指路线颜色")]
+        public ScriptColor TowerGuideColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 1f, 1f) };
+
+        [UserSetting("踩塔-Debug")]
+        public bool TowerDebug { get; set; } = false;
+
+        // ───────── ③b 钢铁 / 月环（二选一的灾祟）─────────
+        [UserSetting("───── ③b 钢铁 / 月环 ─────")]
+        public bool _____SteelDonut_Settings_____ { get; set; } = true;
+
+        [UserSetting("钢铁月环-启用绘制")]
+        public bool EnableSteelDonut { get; set; } = true;
+
+        [UserSetting("钢铁-危险圈颜色(r10)")]
+        public ScriptColor SteelColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.0f, 0.0f, 0.35f) };
+
+        [UserSetting("月环-内圈安全色")]
+        public ScriptColor DonutSafeColor { get; set; } = new ScriptColor { V4 = new Vector4(0.0f, 1.0f, 0.0f, 0.25f) };
+
+        [UserSetting("月环-外圈危险色")]
+        public ScriptColor DonutDangerColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.0f, 0.0f, 0.35f) };
+
+        // ───────── ④ 地火步进圈（2:02 混沌末世）─────────
+        [UserSetting("───── ④ 地火步进（2:02）─────")]
         public bool _____Fire_Settings_____ { get; set; } = true;
 
-        [UserSetting("启用步进圈绘制")]
+        [UserSetting("地火-启用步进危险圈")]
         public bool EnableFireDraw { get; set; } = true;
 
-        [UserSetting("提前显示（读条结束前多少ms开始画）")]
+        [UserSetting("地火-危险圈颜色")]
+        public ScriptColor FireDangerColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.3f, 0.0f, 0.35f) };
+
+        [UserSetting("地火-危险圈段数")]
+        public int FireStepCount { get; set; } = 7;
+
+        [UserSetting("地火-提前显示（读条结束前多少ms开始画）")]
         public int AdvanceDrawMs { get; set; } = 1500;
 
-        [UserSetting("启用地火安全点引导（总开关）")]
+        [UserSetting("地火-启用安全点引导（总开关）")]
         public bool EnableFireSafeGuide { get; set; } = true;
 
         [UserSetting("地火-显示落点圈")]
@@ -66,119 +178,27 @@ namespace ErrerScriptNamespace
         [UserSetting("地火-只亮当前段-落点圈淡显透明度(0~1)")]
         public float FireRouteDimAlpha { get; set; } = 0.25f;
 
-        [UserSetting("地火-危险圈段数")]
-        public int FireStepCount { get; set; } = 7;
-
-        [UserSetting("地火安全点方向")]
+        [UserSetting("地火-安全点方向")]
         public FireSafeStrategy FireSafeDirection { get; set; } = FireSafeStrategy.Auto;
 
-        [UserSetting("地火安全点颜色")]
+        [UserSetting("地火-安全点颜色")]
         public ScriptColor FireSafeColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 0.4f, 1f) };
 
-        [UserSetting("地火路线颜色")]
+        [UserSetting("地火-路线颜色")]
         public ScriptColor FireRouteColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 1f, 1f) };
 
-        [UserSetting("地火安全点Debug")]
+        [UserSetting("地火-安全点Debug")]
         public bool FireSafeDebug { get; set; } = false;
 
-        [UserSetting("-----钢铁/月环（二选一的灾祟）-----")]
-        public bool _____SteelDonut_Settings_____ { get; set; } = true;
-
-        [UserSetting("启用钢铁月环绘制")]
-        public bool EnableSteelDonut { get; set; } = true;
-
-        [UserSetting("-----地水（矩形AOE）-----")]
-        public bool _____Water_Settings_____ { get; set; } = true;
-
-        [UserSetting("启用地水绘制")]
-        public bool EnableWater { get; set; } = true;
-
-        [UserSetting("地水颜色")]
-        public ScriptColor WaterColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 1.0f, 0.0f, 0.35f) };
-
-        [UserSetting("-----洪水2穿1安全点-----")]
-        public bool _____FloodSafe_Settings_____ { get; set; } = true;
-
-        [UserSetting("启用洪水2穿1安全点")]
-        public bool EnableFloodSafe { get; set; } = true;
-
-        [UserSetting("洪水安全点最大距离（米）")]
-        public float FloodMaxDist { get; set; } = 8f;
-
-        [UserSetting("启用洪水中间节点")]
-        public bool EnableFloodMidNode { get; set; } = true;
-
-        [UserSetting("洪水路线底色")]
-        public ScriptColor FloodRouteInactiveColor { get; set; } = new ScriptColor { V4 = new Vector4(0.35f, 0.35f, 0.35f, 0.65f) };
-
-        [UserSetting("洪水路线起点颜色")]
-        public ScriptColor FloodRouteStartColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 1f, 1f) };
-
-        [UserSetting("洪水路线中转颜色")]
-        public ScriptColor FloodRouteMidColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 0.4f, 1f) };
-
-        [UserSetting("洪水路线终点颜色")]
-        public ScriptColor FloodRouteFinalColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 0f, 1f) };
-
-        [UserSetting("Debug：打印洪水交点坐标")]
-        public bool FloodDebug { get; set; } = false;
-
-        [UserSetting("-----核爆/分散（癫狂交响曲）-----")]
-        public bool _____BusterSpread_Settings_____ { get; set; } = true;
-
-        [UserSetting("启用核爆分散绘制")]
-        public bool EnableBusterSpread { get; set; } = true;
-
-        [UserSetting("-----咏唱中分散圈-----")]
+        // ───────── ④b 咏唱分散（混沌涡旋）─────────
+        [UserSetting("───── ④b 咏唱分散（混沌涡旋）─────")]
         public bool _____CastSpread_Settings_____ { get; set; } = true;
 
-        [UserSetting("启用咏唱中分散圈")]
+        [UserSetting("咏唱分散-启用8人分散圈")]
         public bool EnableCastSpread { get; set; } = true;
 
-        [UserSetting("咏唱中分散圈颜色")]
+        [UserSetting("咏唱分散-圈颜色")]
         public ScriptColor CastSpreadColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 1.0f, 0.0f, 0.35f) };
-
-        [UserSetting("-----三星踩塔指路-----")]
-        public bool _____Tower_Settings_____ { get; set; } = true;
-
-        [UserSetting("启用三星踩塔指路")]
-        public bool EnableTowerGuide { get; set; } = true;
-
-        [UserSetting("踩塔只指路自己")]
-        public bool TowerGuideSelfOnly { get; set; } = true;
-
-        [UserSetting("踩塔头部标记")]
-        public bool TowerEnableMark { get; set; } = false;
-
-        [UserSetting("踩塔Debug")]
-        public bool TowerDebug { get; set; } = false;
-
-        [UserSetting("踩塔分配最大等待ms")]
-        public int TowerAssignMaxWaitMs { get; set; } = 2500;
-
-        [UserSetting("踩塔线色")]
-        public ScriptColor TowerGuideColor { get; set; } = new ScriptColor { V4 = new Vector4(0f, 1f, 1f, 1f) };
-
-        [UserSetting("-----颜色-----")]
-        public bool _____Color_Settings_____ { get; set; } = true;
-
-        [UserSetting("地火危险色")]
-        public ScriptColor FireDangerColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.3f, 0.0f, 0.35f) };
-
-        [UserSetting("钢铁危险色")]
-        public ScriptColor SteelColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.0f, 0.0f, 0.35f) };
-
-        [UserSetting("月环安全色（内圈）")]
-        public ScriptColor DonutSafeColor { get; set; } = new ScriptColor { V4 = new Vector4(0.0f, 1.0f, 0.0f, 0.25f) };
-
-        [UserSetting("月环危险色（外圈）")]
-        public ScriptColor DonutDangerColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.0f, 0.0f, 0.35f) };
-
-        [UserSetting("核爆危险色")]
-        public ScriptColor BusterColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 0.0f, 0.0f, 0.35f) };
-
-        [UserSetting("神圣黄色")]
-        public ScriptColor SpreadColor { get; set; } = new ScriptColor { V4 = new Vector4(1.0f, 1.0f, 0.0f, 0.35f) };
 
         #endregion
 
@@ -283,6 +303,18 @@ namespace ErrerScriptNamespace
         private Vector3? _savedFloodSafe1;
         private Vector3? _savedFloodMid1;
 
+        // ── 神圣引导预警（防互撞黄圈）──
+        private const string HolyGuidePrefix = DrawPrefix + "_HolyGuide";
+        private const string HolyGuideRegex = "^" + DrawPrefix + "_HolyGuide_.*$";
+        private const int HolyGuideFirstCandidateIndex = 2; // H1
+        private const int HolyGuideLastCandidateIndex = 7;  // D4
+        private const int HolyGuideTimeoutMs = 20000;
+        private readonly object _holyLock = new();
+        private readonly HashSet<int> _holyTargeted = new();
+        private readonly HashSet<int> _holyOnStatus = new();
+        private bool _holyActive;
+        private int _holyGen;
+
         #endregion
 
         #region Init
@@ -296,6 +328,7 @@ namespace ErrerScriptNamespace
             _negCount = 0; _posCount = 0; _seqCount = 0;
             _savedFloodSafe1 = null;
             _savedFloodMid1 = null;
+            ResetHolyGuideState();
             ResetTowerGuideState(true);
             accessory.Method.RemoveDraw($"{DrawPrefix}_.*");
             accessory.Method.RemoveDraw($"{TowerPrefix}_.*");
@@ -1150,8 +1183,12 @@ namespace ErrerScriptNamespace
             eventCondition: ["StatusID:5351"], userControl: false)]
         public void OnSpread(Event @event, ScriptAccessory accessory)
         {
-            if (!EnableBusterSpread) return;
             if (!TryParseObjectId(@event["TargetId"], out var tid)) return;
+
+            // 神圣引导预警与核爆/神圣分散圈相互独立，先处理（即使分散圈关闭也要撤黄圈）
+            HandleHolyGuide(accessory, tid);
+
+            if (!EnableBusterSpread) return;
 
             var dp = accessory.Data.GetDefaultDrawProperties();
             dp.Name = $"{DrawPrefix}_Spread";
@@ -1161,6 +1198,167 @@ namespace ErrerScriptNamespace
             dp.DestoryAt = SpreadDurationMs;
             dp.ScaleMode = ScaleMode.None;
             accessory.Method.SendDraw(DM, DrawTypeEnum.Circle, dp);
+        }
+
+        #endregion
+
+        #region 神圣引导预警（防互撞黄圈）
+
+        // 设计：仓库内无「引导神圣」专属读条 ID（Cicero 权威脚本也不含本脚本这套 5350/5351），
+        // 故以「本批第一个 5351 点名」作预警起点——第一个点名到达时立刻给其余未点名的 DPS/奶妈
+        // (PartyList 2~7)铺黄圈(可能的点名 AOE 范围)，被点名者随各自 5351(StatusAdd) 撤掉自己的黄圈；
+        // 凑满 6 人(两轮各 3)即「两轮点名后清理」，超时为终极兜底，StatusRemove 作逐人安全补删。
+        // 与已监听 5351 的 OnSpread 合并调用，保证单分发、避免重复注册同一状态。
+        // 职能按队列索引判定(0/1坦克·2/3奶妈·4-7DPS，参考 Cicero isTank/isHealer/isDps)。
+        private void HandleHolyGuide(ScriptAccessory accessory, uint targetId)
+        {
+            if (!EnableHolyGuide) return;
+
+            var idx = accessory.Data.PartyList.IndexOf(targetId);
+            var isCandidate = IsHolyCandidate(idx, accessory);
+
+            bool startBatch = false;
+            int gen;
+            int targetedCount;
+            lock (_holyLock)
+            {
+                if (!_holyActive)
+                {
+                    _holyActive = true;
+                    _holyTargeted.Clear();
+                    _holyOnStatus.Clear();
+                    gen = ++_holyGen;
+                    startBatch = true;
+                }
+                else
+                {
+                    gen = _holyGen;
+                }
+
+                if (isCandidate)
+                {
+                    _holyTargeted.Add(idx);
+                    _holyOnStatus.Add(idx);
+                }
+                targetedCount = _holyTargeted.Count;
+            }
+
+            if (startBatch)
+            {
+                // 起批时 _holyTargeted 已含首个点名者，DrawHolyGuideWarnings 会跳过它 → 首个点名者不画黄圈
+                DrawHolyGuideWarnings(accessory);
+                ScheduleHolyGuideTimeout(accessory, gen);
+            }
+            else if (isCandidate)
+            {
+                accessory.Method.RemoveDraw($"{HolyGuidePrefix}_{idx}");
+            }
+
+            if (HolyGuideDebug)
+                accessory.Method.SendChat($"/e [神圣引导] 点名 idx={idx} 候选={isCandidate} 起批={startBatch} 已点名={targetedCount}/{HolyCandidateCount(accessory)}");
+
+            // 两轮点名凑满全部 DPS/奶妈 → 清理（此时各黄圈已逐个撤完，regex 仅作收尾）
+            if (targetedCount >= HolyCandidateCount(accessory))
+                FinishHolyGuideBatch(accessory, gen, "两轮点名已满");
+        }
+
+        [ScriptMethod(name: "神圣引导预警清除", eventType: EventTypeEnum.StatusRemove,
+            eventCondition: ["StatusID:5351"], userControl: false)]
+        public void OnHolyGuideStatusRemove(Event @event, ScriptAccessory accessory)
+        {
+            if (!EnableHolyGuide) return;
+            if (!TryParseObjectId(@event["TargetId"], out var tid)) return;
+
+            var idx = accessory.Data.PartyList.IndexOf(tid);
+            if (!IsHolyCandidate(idx, accessory)) return;
+
+            int remainOnStatus;
+            lock (_holyLock)
+            {
+                if (!_holyActive) return;
+                _holyOnStatus.Remove(idx);
+                remainOnStatus = _holyOnStatus.Count;
+            }
+
+            // 安全兜底：该人黄圈应已在点名时撤掉，这里再删一次防漏（不在此处结批，避免分轮机制误清下一轮预警）
+            accessory.Method.RemoveDraw($"{HolyGuidePrefix}_{idx}");
+
+            if (HolyGuideDebug)
+                accessory.Method.SendChat($"/e [神圣引导] 解控 idx={idx} 在控剩={remainOnStatus}");
+        }
+
+        private void DrawHolyGuideWarnings(ScriptAccessory accessory)
+        {
+            HashSet<int> targeted;
+            lock (_holyLock) targeted = new HashSet<int>(_holyTargeted);
+
+            var meIndex = accessory.Data.PartyList.IndexOf(accessory.Data.Me);
+            var last = Math.Min(HolyGuideLastCandidateIndex, accessory.Data.PartyList.Count - 1);
+            for (var i = HolyGuideFirstCandidateIndex; i <= last; i++)
+            {
+                if (targeted.Contains(i)) continue;
+                if (HolyGuideSelfOnly && i != meIndex) continue;
+
+                var dp = accessory.Data.GetDefaultDrawProperties();
+                dp.Name = $"{HolyGuidePrefix}_{i}";
+                dp.Owner = accessory.Data.PartyList[i];
+                dp.Scale = new Vector2(Math.Max(0.1f, HolyGuideRadius));
+                dp.Color = HolyGuideColor.V4;
+                dp.DestoryAt = HolyGuideTimeoutMs;
+                dp.ScaleMode = ScaleMode.None;
+                accessory.Method.SendDraw(DM, DrawTypeEnum.Circle, dp);
+            }
+
+            if (HolyGuideDebug)
+                accessory.Method.SendChat($"/e [神圣引导] 起批铺黄圈 候选={HolyCandidateCount(accessory)} 只画自己={HolyGuideSelfOnly}");
+        }
+
+        private void ScheduleHolyGuideTimeout(ScriptAccessory accessory, int gen)
+        {
+            _ = Task.Delay(HolyGuideTimeoutMs).ContinueWith(_ => FinishHolyGuideBatch(accessory, gen, "超时兜底"));
+        }
+
+        private void FinishHolyGuideBatch(ScriptAccessory accessory, int gen, string reason)
+        {
+            bool clear;
+            lock (_holyLock)
+            {
+                clear = _holyActive && gen == _holyGen;
+                if (clear)
+                {
+                    _holyActive = false;
+                    _holyOnStatus.Clear();
+                }
+            }
+            if (!clear) return;
+
+            accessory.Method.RemoveDraw(HolyGuideRegex);
+            if (HolyGuideDebug)
+                accessory.Method.SendChat($"/e [神圣引导] 清理({reason})");
+        }
+
+        private bool IsHolyCandidate(int partyIndex, ScriptAccessory accessory)
+        {
+            return partyIndex >= HolyGuideFirstCandidateIndex
+                && partyIndex <= HolyGuideLastCandidateIndex
+                && partyIndex < accessory.Data.PartyList.Count;
+        }
+
+        private int HolyCandidateCount(ScriptAccessory accessory)
+        {
+            var last = Math.Min(HolyGuideLastCandidateIndex, accessory.Data.PartyList.Count - 1);
+            return Math.Max(0, last - HolyGuideFirstCandidateIndex + 1);
+        }
+
+        private void ResetHolyGuideState()
+        {
+            lock (_holyLock)
+            {
+                _holyActive = false;
+                _holyTargeted.Clear();
+                _holyOnStatus.Clear();
+                _holyGen++;
+            }
         }
 
         #endregion
